@@ -1,3 +1,5 @@
+import asyncio
+from pathlib import Path
 import requests
 import urllib.parse
 from bs4 import BeautifulSoup
@@ -21,30 +23,25 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
-finded=[]
 async def finder(nickname):
-    sites = open('text.txt')
-    for site in sites:
-        name = site.split(' ')[0]
-        link = site.split(' ')[1]
-        link = link.rstrip('\n')
-        url = link+nickname
-        try:
-            r = requests.get(url)
-            if r.status_code == 200:
-                finded.append("найден "+nickname+": "+url)
-                print("найден "+nickname+": "+url)
-            else:
-                finded.append("не найден "+nickname+": "+url)
-                print("не найден "+nickname+": "+url)
-        except:
-            finded.append("ошибка поиска по "+nickname)
-            print("ошибка поиска по "+nickname)
-    sites.close()
+    results = []
+    with open(Path(__file__).with_name('text.txt'), encoding='utf-8') as sites:
+        for site in sites:
+            parts = site.split()
+            if len(parts) < 2:
+                continue
+            url = parts[1] + urllib.parse.quote(nickname, safe='')
+            try:
+                response = await asyncio.to_thread(requests.get, url, timeout=10)
+                prefix = "найден " if response.status_code == 200 else "не найден "
+                results.append(prefix + nickname + ": " + url)
+            except requests.RequestException:
+                results.append("ошибка поиска по " + nickname)
+    return results
 
 @dp.message_handler(chat_type=ChatType.PRIVATE)
 async def start(message: types.Message):
-    await finder(message.text)
+    finded = await finder(message.text)
     b=''
     for i in finded:
         b+=i+"\n"
